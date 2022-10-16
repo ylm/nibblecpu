@@ -9,7 +9,7 @@ def bench():
         yield dut.operandY.eq((state & 240)>>4)
         yield
         yield dut.carry
-        yield dut.result
+        yield dut.ArithResult
         yield dut.zero
         yield dut.overflow
         #print("carry is ", dut.carry_out.as_unsigned(), " sum is ", dut.sum.as_unsigned())

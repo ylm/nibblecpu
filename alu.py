@@ -2,29 +2,18 @@ from amaranth import *
 from enum import IntEnum
 from full_adder import *
 
-class Operations(IntEnum):
-    NOP = 0
-    ADD = 1
-    ADC = 2
-    SUB = 3
-    SBB = 4
-    OR  = 5
-    AND = 6
-    XOR = 7
-
 class ALU(Elaboratable):
     def __init__(self):
 
         self.carry_in = Signal()
         self.operandX = Signal(4)
         self.operandY = Signal(4)
-        '''
-        self.operation = Signal(Operations)
-        '''
         self.carry = Signal()
         self.overflow = Signal()
-        self.zero = Signal()
-        self.result = Signal(4)
+        self.ArithResult = Signal(4)
+        self.OR_LogicResult = Signal(4)
+        self.ANDLogicResult = Signal(4)
+        self.XORLogicResult = Signal(4)
         self.dummy = Signal()
 
     def elaborate(self, platform):
@@ -32,10 +21,8 @@ class ALU(Elaboratable):
 
         m.d.sync += self.dummy.eq(~self.dummy)
         full_adder_cascade = Array((FullAdder() for idx in range(4)))
-        m.submodules.full_adder0 = full_adder_cascade[0]
-        m.submodules.full_adder1 = full_adder_cascade[1]
-        m.submodules.full_adder2 = full_adder_cascade[2]
-        m.submodules.full_adder3 = full_adder_cascade[3]
+        for subm in full_adder_cascade:
+            m.submodules += subm
         # Connecting the carry chain
         m.d.comb += [full_adder_cascade[0].carry_in.eq(self.carry_in),
                 full_adder_cascade[1].carry_in.eq(full_adder_cascade[0].carry_out),
@@ -47,12 +34,11 @@ class ALU(Elaboratable):
                     full_adder_cascade[idx].operand2.eq(self.operandY[idx])]
 
         for idx in range(4):
-            m.d.comb += self.result[idx].eq(full_adder_cascade[idx].sum)
-        m.d.comb += self.zero.eq(~(self.result.any()))
+            m.d.comb += self.ArithResult[idx].eq(full_adder_cascade[idx].sum)
+
+        m.d.comb += self.OR_LogicResult.eq(self.operandX | self.operandY)
+        m.d.comb += self.ANDLogicResult.eq(self.operandX & self.operandY)
+        m.d.comb += self.XORLogicResult.eq(self.operandX ^ self.operandY)
+
         m.d.comb += self.overflow.eq(full_adder_cascade[2].carry_out ^ full_adder_cascade[3].carry_out)
-        '''
-        with m.Switch(self.operation):
-            with m.Case(Operations.ADD):
-                m.d.comb += self.result.eq(self.operandX + self.operandY)
-        '''
         return m
