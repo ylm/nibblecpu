@@ -5,7 +5,7 @@ from alu import ALU
 
 class smolcpu(Elaboratable):
 
-    def __init__(self):
+    def __init__(self, prg_bin=None):
 
         #ports
         self.pc = Signal(12)
@@ -21,18 +21,19 @@ class smolcpu(Elaboratable):
         self.overflow = Signal()
         self.zero = Signal()
         self.sp = Signal(3)
-        self.displacement = Signal(12)
+        self.displacement = Signal(signed(8))
         self.source_inv = Signal()
+        self.prg_bin = prg_bin
 
     def elaborate(self, platform):
         m = Module()
         #data_memory = Array((Signal(4, name := f'r{idx}') for idx in range(256)))
         data_memory = Array([Signal(4) for idx in range(10)] + [self.out] + [self.inr] + [self.jsr] + [self.pc[0:4]] + [self.pc[4:8]] + [self.pc[8:12]] + [Signal(4) for idx in range(256-16)])
 
-        program_mem = Memory(width=12, depth=2**16)
+        program_mem = Memory(width=12, depth=2**16, init=self.prg_bin)
         read_program = program_mem.read_port()
         m.submodules.read_program = read_program
-        m.d.comb += [read_program.addr.eq(self.pc),
+        m.d.comb += [read_program.addr.eq(self.pc + self.displacement),
                 self.instruction.eq(read_program.data)]
         m.d.comb += self.opcode.eq(self.instruction[8:12])
         m.d.comb += self.operandX.eq(self.instruction[4:8])
@@ -45,7 +46,6 @@ class smolcpu(Elaboratable):
         m.d.comb += alu.operandY.eq(data_memory[self.operandY])
 
 
-        #self.pc = Cat(Cat(data_memory[15-2], data_memory[15-1]), data_memory[15-0])
         m.d.sync += self.pc.eq(self.pc + self.displacement)
         m.d.sync += self.carry.eq(alu.carry)
         with m.If(self.opcode.any()):
@@ -131,6 +131,25 @@ class smolcpu(Elaboratable):
             with m.Case(7): # XOR
                 m.d.sync += data_memory[self.operandX].eq(alu.XORLogicResult)
                 m.d.sync += self.zero.eq(~alu.XORLogicResult.any())
+            with m.Case(8): # MOV
+                m.d.sync += data_memory[self.operandX].eq(data_memory[self.operandY])
+            with m.Case(9): # MOV
+                m.d.sync += data_memory[self.operandX].eq(self.operandY)
+            with m.Case(10): # MOV
+                ind_addr = Cat(data_memory[self.operandY], data_memory[self.operandX])
+                m.d.sync += data_memory[ind_addr].eq(data_memory[0])
+            with m.Case(11): # MOV
+                ind_addr = Cat(data_memory[self.operandY], data_memory[self.operandX])
+                m.d.sync += data_memory[0].eq(data_memory[ind_addr])
+            with m.Case(12): # MOV
+                m.d.sync += data_memory[Cat(self.operandY, self.operandX)].eq(data_memory[0])
+            with m.Case(13): # MOV
+                m.d.sync += data_memory[0].eq(data_memory[Cat(self.operandY, self.operandX)])
+            with m.Case(14): # LPC
+                m.d.sync += data_memory[14].eq(self.operandY)
+                m.d.sync += data_memory[15].eq(self.operandX)
+            with m.Case(15): # JR
+                m.d.comb += self.displacement.eq(Cat(self.operandY, self.operandX) + 1)
 
 
         return m
