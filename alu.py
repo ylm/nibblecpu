@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BSD-2-Clause
 from amaranth import *
 from enum import IntEnum
 from full_adder import *

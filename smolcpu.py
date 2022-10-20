@@ -1,5 +1,4 @@
-# LICENSE AND COPYRIGHT GOES HERE...
-
+# SPDX-License-Identifier: BSD-2-Clause
 from amaranth import *
 from alu import ALU
 from enum import IntEnum

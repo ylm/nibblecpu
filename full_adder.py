@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BSD-2-Clause
 from amaranth import *
 
 class FullAdder(Elaboratable):
