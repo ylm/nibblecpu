@@ -94,12 +94,32 @@ class smolcpu(Elaboratable):
                         m.d.sync += data_memory[self.operandY].eq(alu.ArithResult)
                         m.d.sync += self.carry.eq(self.carry)
                         m.d.sync += self.zero.eq(~alu.ArithResult.any())
+                        with m.If(self.operandY == Registers.PCL):
+                            m.d.comb += self.comb_pc.eq(Cat(alu.ArithResult,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                        with m.If(self.operandX == Registers.JSR):
+                            m.d.comb += self.comb_pc.eq(Cat(alu.ArithResult,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                            m.d.sync += self.sp.eq(self.sp + 1)
+                            m.d.sync += [data_memory[0x10+(3*self.sp)+0].eq((self.pc + 1).bit_select(0,4)),
+                                    data_memory[0x10+(3*self.sp)+1].eq((self.pc + 1).bit_select(4,4)),
+                                    data_memory[0x10+(3*self.sp)+2].eq((self.pc + 1).bit_select(8,4))]
+                            with m.If(self.sp == 5):
+                                m.d.sync += self.error.eq(1)
                     with m.Case(3): # DEC Ry
                         m.d.comb += alu.operandX.eq(15)
                         m.d.comb += alu.carry_in.eq(0)
                         m.d.sync += data_memory[self.operandY].eq(alu.ArithResult)
                         m.d.sync += self.carry.eq(~alu.ArithResult.any())
                         m.d.sync += self.zero.eq(~alu.ArithResult.any())
+                        with m.If(self.operandY == Registers.PCL):
+                            m.d.comb += self.comb_pc.eq(Cat(alu.ArithResult,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                        with m.If(self.operandX == Registers.JSR):
+                            m.d.comb += self.comb_pc.eq(Cat(alu.ArithResult,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                            m.d.sync += self.sp.eq(self.sp + 1)
+                            m.d.sync += [data_memory[0x10+(3*self.sp)+0].eq((self.pc + 1).bit_select(0,4)),
+                                    data_memory[0x10+(3*self.sp)+1].eq((self.pc + 1).bit_select(4,4)),
+                                    data_memory[0x10+(3*self.sp)+2].eq((self.pc + 1).bit_select(8,4))]
+                            with m.If(self.sp == 5):
+                                m.d.sync += self.error.eq(1)
                     with m.Case(4): # DSZ Ry
                         m.d.comb += alu.operandX.eq(15)
                         m.d.comb += alu.carry_in.eq(0)
@@ -127,6 +147,53 @@ class smolcpu(Elaboratable):
                         m.d.sync += self.carry.eq(~self.carry)
                         m.d.sync += self.zero.eq(~alu.XORLogicResult.any())
                     #with m.Case(8): # EXR N
+                    with m.Case(9): # BIT RG, M
+                        #TODO: Need to handle WrFlags for reg.IN location
+                        with m.If(self.operandY.bit_select(2,2) == 3):
+                            m.d.sync += self.zero.eq(~data_memory[Registers.IN].bit_select(self.operandY.bit_select(0,2),1))
+                        with m.Else():
+                            regg = self.operandY.bit_select(2,2)
+                            m.d.sync += self.zero.eq(~data_memory[regg].bit_select(self.operandY.bit_select(0,2),1))
+                    with m.Case(10): # BSET RG,M
+                        #TODO: Need to handle WrFlags for reg.IN location
+                        with m.If(self.operandY.bit_select(2,2) == 3):
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[Registers.OUT][idx].eq(1)
+                        with m.Else():
+                            regg = self.operandY.bit_select(2,2)
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[regg][idx].eq(1)
+                    with m.Case(11): # BCLR RG,M
+                        #TODO: Need to handle WrFlags for reg.IN location
+                        with m.If(self.operandY.bit_select(2,2) == 3):
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[Registers.OUT][idx].eq(0)
+                        with m.Else():
+                            regg = self.operandY.bit_select(2,2)
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[regg][idx].eq(0)
+                    with m.Case(12): # BTG RG,M
+                        #TODO: Need to handle WrFlags for reg.IN location
+                        with m.If(self.operandY.bit_select(2,2) == 3):
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[Registers.OUT][idx].eq(~data_memory[Registers.OUT][idx])
+                        with m.Else():
+                            regg = self.operandY.bit_select(2,2)
+                            with m.Switch(self.operandY.bit_select(0,2)):
+                                for idx in range(4):
+                                    with m.Case(idx):
+                                        m.d.sync += data_memory[regg][idx].eq(~data_memory[regg][idx])
+                    #with m.Case(13): # RRC RY
                     with m.Case(14): # RET R0, N
                         m.d.sync += data_memory[Registers.R0].eq(self.operandY)
                         m.d.sync += self.sp.eq(self.sp - 1)
@@ -165,7 +232,7 @@ class smolcpu(Elaboratable):
                 with m.If(self.operandX == Registers.PCL):
                     m.d.comb += self.comb_pc.eq(Cat(data_memory[self.operandY],Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
                 with m.If(self.operandX == Registers.JSR):
-                    m.d.comb += self.comb_pc.eq(Cat(data_memory[Registers.JSR],Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                    m.d.comb += self.comb_pc.eq(Cat(data_memory[self.operandY],Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
                     m.d.sync += self.sp.eq(self.sp + 1)
                     m.d.sync += [data_memory[0x10+(3*self.sp)+0].eq((self.pc + 1).bit_select(0,4)),
                             data_memory[0x10+(3*self.sp)+1].eq((self.pc + 1).bit_select(4,4)),
@@ -175,7 +242,7 @@ class smolcpu(Elaboratable):
             with m.Case(9): # MOV
                 m.d.sync += data_memory[self.operandX].eq(self.operandY)
                 with m.If(self.operandX == Registers.PCL):
-                    m.d.comb += self.comb_pc.eq(Cat(data_memory[Registers.PCL],Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
+                    m.d.comb += self.comb_pc.eq(Cat(self.operandY,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
                 with m.If(self.operandX == Registers.JSR):
                     m.d.comb += self.comb_pc.eq(Cat(self.operandY,Cat(data_memory[Registers.PCM],data_memory[Registers.PCH])))
                     m.d.sync += self.sp.eq(self.sp + 1)
