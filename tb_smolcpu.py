@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: BSD-2-Clause
+import sys
 from amaranth.sim import Simulator
 from smolcpu import smolcpu
+
+sys.setrecursionlimit(100000)
 
 test_prg = [
         0x924, #MOV R2, 4
